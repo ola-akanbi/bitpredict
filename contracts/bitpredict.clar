@@ -261,3 +261,40 @@
     )
   )
 )
+
+;; Oracle-Verified Market Resolution
+(define-public (resolve-market
+    (market-id uint)
+    (end-price uint)
+  )
+  (let (
+      (market (unwrap! (map-get? markets market-id) ERR_MARKET_NOT_FOUND))
+      (current-block stacks-block-height)
+    )
+    ;; Oracle Authorization & Validation
+    (asserts! (is-eq tx-sender (var-get oracle-address)) ERR_ORACLE_ONLY)
+    (asserts! (>= current-block (get end-block market)) ERR_MARKET_CLOSED)
+    (asserts! (not (get resolved market)) ERR_ALREADY_RESOLVED)
+    (asserts! (> end-price u0) ERR_INVALID_PRICE)
+    
+    ;; Execute Market Resolution
+    (map-set markets market-id
+      (merge market {
+        end-price: end-price,
+        resolved: true,
+        resolution-block: current-block,
+      })
+    )
+    
+    ;; Update Active Markets Counter
+    (var-set active-markets-count (- (var-get active-markets-count) u1))
+    
+    ;; Calculate and Store Market Analytics
+    (calculate-market-analytics market-id market end-price)
+    (ok {
+      market-id: market-id,
+      end-price: end-price,
+      resolution-block: current-block,
+    })
+  )
+)
